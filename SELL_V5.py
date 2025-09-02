@@ -171,6 +171,8 @@ def readOrdersFromPkl():
                     'price': position.cost_basis
                 })
                 g.my_orders[last_date] = last_order
+            elif int(position.amount) == int(hold_stocks[position.sid]):
+                pass
             else:
                 info("--------------readOrdersFromPkl----------------" + "stock:" + stock + "在hold_stocks中的amount大于当前持仓，报警", 'error') 
     info("--------------readOrdersFromPkl----------------g.my_orders：" + str(g.my_orders), 'info') 
