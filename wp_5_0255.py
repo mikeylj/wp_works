@@ -14,7 +14,7 @@ def initialize(context):
     pd.option_context('display.max_rows', 50)
     pd.set_option('display.max_columns', None)  # 显示所有列
     pd.set_option('display.width', 1000)  # 增加列展示宽度
-    pass
+    g.notebook_path = get_research_path()
 
 # 盘前处理
 def before_trading_start(context, data):
@@ -29,11 +29,12 @@ def before_trading_start(context, data):
     g.bFinishedCalc = False   #是否完成计算
     g.nBuyMoney = 250000 / 7    #买入金额
     g.mailBuyStocks = {}
+    g.arrMsg = {}
 
 def after_trading_end(context, data):
     info("--------------Run after_trading_end----------------", 'info') 
     info(f"{str(g.deal_hand_time)}发送邮件{str(g.buyedStocks)},{str(g.mailBuyStocks)}", 'info') 
-    # msg = f"{str(g.deal_hand_time)}发送邮件{str(g.buyedStocks)},{str(g.mailBuyStocks)}"
+    # msg = f"{str(g.deal_hand_time)}发送邮件：{str(g.mailBuyStocks)}"
     # send_email('54229670@qq.com', ['54229670@qq.com', '290291989@qq.com', '68043432@qq.com'], 'zfethvvdbmcbbjaa', info=msg)
 
 #0.取得主板所有股票
@@ -125,6 +126,7 @@ def getStocksByTurnoverRate(arrStocks, context, data):
                 arrTurnoverStocks[stock] = turnover_ratio
                 arrBuyStocks[stock] = buy_price    
     if g.bFinishedCalc:
+        g.arrMsg['换手率股票'] = str(arrTurnoverStocks)
         getBuyStocks(arrBuyStocks, context)
         g.bFinishedCalc = False
     
@@ -309,7 +311,8 @@ def getBuyStocks(arrBuyStocks, context):
             info(f"买入股票%s,数量%s, 金额%s元，买入价%s"%(stock,nStockBuyAmount, nMoney, price), 'info')
     
     msg = f"{str(g.deal_hand_time)}发送邮件：{str(g.mailBuyStocks)}"
-    send_email('54229670@qq.com', ['54229670@qq.com', '290291989@qq.com', '68043432@qq.com'], 'zfethvvdbmcbbjaa', info=msg)
+    # send_email('54229670@qq.com', ['54229670@qq.com', '290291989@qq.com', '68043432@qq.com'], 'zfethvvdbmcbbjaa', info=msg, path=(g.notebook_path + '/arrMsg.txt'))
+    send_email('54229670@qq.com', ['54229670@qq.com'], 'zfethvvdbmcbbjaa', info=msg, path=(g.notebook_path + '/arrMsg.txt'))
 
 def info(info, type = 'info'):
     # if g.bDebug:
@@ -350,7 +353,7 @@ def filter_not_mainboard(arrStocks):
 #tick_data每3秒运行一次，在tick_data内，改成每5分钟运行一次
 def tick_data(context,data):
     #取得股票换手率
-    if g.hand_times > g.deal_hand_times and hasattr(g, 'arrStocks'):
+    if g.hand_times >= g.deal_hand_times and hasattr(g, 'arrStocks'):
         g.arrTurnoverStocks = getStocksByTurnoverRate(g.arrStocks, context=context, data=data)
 
 
@@ -386,17 +389,22 @@ def handle_data(context, data):
         arrStocks = []
         #step 0、取得主板所有股票
         arrStocks = getStocksByBoard()
+        g.arrMsg['主板股票'] = ",".join(arrStocks)
         #step 1、筛选位于主板的，市值 30-400 亿的股票。只筛选出位于沪深主板的股票，剔除ST 类股票，剔除主板以外科创板、创业板等所有非主板股票。
         arrStocks = getStocksByTotalValue(arrStocks)
+        g.arrMsg['市值 30-400 亿的股票'] = ",".join(arrStocks)
         #step 2、筛选当日股票涨幅不低于+3%，且上影线长度不大于 K 线实体的 1/5后
         arrStocks = getStocksByPxChangeRateAndShadowLine(arrStocks)
+        g.arrMsg['涨幅不低于+3%的股票'] = ",".join(arrStocks)
         #4、从交易日 2:30 分之后开始选股，当日成交量大于前五日平均成交量的 1.5倍。且当日成交量比前五日每一天的成交量均大 1.5 倍。
         arrStocks = getStocksByVolume(arrStocks)
+        g.arrMsg['成交量大于前五日平均成交量的 1.5倍的股票'] = ",".join(arrStocks)
         #5 股票当日 2:30 分之后成交量放大，2:30 分之后每分钟平均成交量高于全天每分钟成交量。
         # arrStocks = getStocksByVolume2(arrStocks, g.hand_times)
         #判断arrStocks是否为空，如果为空，返回
         if len(arrStocks) > 0:
             arrStocks = getStocksByVolume3(arrStocks)
+            g.arrMsg['股票当日 2:30 分之后成交量放大，2:30 分之后每分钟平均成交量高于全天每分钟成交量的股票'] = ",".join(arrStocks)
         else:
             info(f'arrStocks为空，未执行：getStocksByVolume3，5 股票当日 2:30 分之后成交量放大，2:30 分之后每分钟平均成交量高于全天每分钟成交量。', 'info')
         #6、主力资金当日净流入金额为大于 0；且主力资金 5 日净流入的和大于 0。
@@ -439,4 +447,9 @@ def getSellPrice(stock):
     current_price = snapshot_data[stock]['bid_grp'][5][0]
     current_price_2 = snapshot_data[stock]['bid_grp'][3][0]
     return current_price, current_price_2
-    
+
+#将g.arrMsg写入到文件中
+def writeArrMsg():
+    with open(g.notebook_path + '/arrMsg.txt', 'w') as f:
+        for key, value in g.arrMsg.items():
+            f.write(key + ':' + value + '\n')
