@@ -38,6 +38,9 @@ def predict_and_plot(ts_code='000001.SZ'):
     dummy[:, 0] = y_test.flatten()
     y_test = scaler.inverse_transform(dummy)[:, 0]
     
+    print(y_test)
+    print(preds)
+
     # 绘制结果
     plt.figure(figsize=(12, 6))
     plt.plot(y_test, label='Actual Price', color='blue', alpha=0.6)
